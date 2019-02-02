@@ -2,28 +2,111 @@
 #define ARRAY_H
 #include <functional>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <type_traits>
 #include <typeinfo>
 #include <stdexcept>
+#include <algorithm>
 
 using std::function;
 using std::ostream;
 using std::string;
 using std::is_fundamental;
 
+namespace array_utils {
+  /**
+   * Credits
+   * https://www.fluentcpp.com/2017/06/06/using-tostring-custom-types-cpp/
+   */
+
+  template<typename...>
+  using try_to_instantiate = void;
+
+  using disregard_this = void;
+
+  template<template<typename...> class Expression, typename Attempt, typename... Ts>
+  struct is_detected_impl : std::false_type{};
+
+  template<template<typename...> class Expression, typename... Ts>
+  struct is_detected_impl<Expression, try_to_instantiate<Expression<Ts...>>, Ts...> : std::true_type{};
+
+  template<template<typename...> class Expression, typename... Ts>
+  constexpr bool is_detected = is_detected_impl<Expression, disregard_this, Ts...>::value;
+
+  // 1- detecting if std::to_string is valid on T
+  template<typename T>
+  using std_to_string_expression = decltype(std::to_string(std::declval<T>()));
+
+  template<typename T>
+  constexpr bool has_std_to_string = is_detected<std_to_string_expression, T>;
+
+  // 2- detecting if to_string is valid on T
+  template<typename T>
+  using to_string_expression = decltype(to_string(std::declval<T>()));
+
+  template<typename T>
+  constexpr bool has_to_string = is_detected<to_string_expression, T>;
+
+  // 3- detecting T can be sent to an ostringstream
+  template<typename T>
+  using ostringstream_expression = decltype(std::declval<std::ostringstream&>() << std::declval<T>());
+
+  template<typename T>
+  constexpr bool has_ostringstream = is_detected<ostringstream_expression, T>;
+
+  // 1-  std::to_string is valid on T
+  template<typename T, typename std::enable_if<has_std_to_string<T>, int>::type = 0>
+  std::string to_string(T const& t) {
+      return std::to_string(t);
+  }
+
+  // 2-  std::to_string is not valid on T, but to_string is
+  template<typename T, typename std::enable_if<!has_std_to_string<T> && has_to_string<T>, int>::type = 0>
+  std::string to_string(T const& t) {
+      return to_string(t);
+  }
+
+  // 3-  neither std::string nor to_string work on T, let's stream it then
+  template<typename T, typename std::enable_if<!has_std_to_string<T> && !has_to_string<T> && has_ostringstream<T>, int>::type = 0>
+  std::string to_string(T const& t) {
+      std::ostringstream oss;
+      oss << t;
+      return oss.str();
+  }
+}
+
 template <class T>
 class Array {
 private:
+  // The pointer array
   T * array_ = nullptr;
+  // The offset after an element is removed
+  // from the front of the array.
+  // This allows the array to have a O(1) when
+  // removing an element from the front.
   uint64_t offset_ = 0;
+  // The heap size.
   uint64_t size_ = 0;
+  // The number of elements in the array.
   uint64_t length_ = 0;
 
 public:
   Array() {}
+
   Array(uint64_t size) {
     array_ = new T[size];
+  }
+
+  Array(Array const& other) {
+    reserve(other.size_, false);
+    for(auto i = 0; i < other.size_; i++) {
+      array_[i] = other.array_[i];
+    }
+
+    offset_ = other.offset_;
+    size_ = other.size_;
+    length_ = other.length_;
   }
 
   ~Array() {
@@ -36,7 +119,7 @@ public:
   /**
    * Return the value at the specified index.
    */
-  T& operator [] (uint64_t const& index) {
+  T& operator [] (int64_t const& index) {
     if (index < 0 || index >= length()) {
       throw std::out_of_range("Index is out of bounds");
     }
@@ -79,9 +162,16 @@ public:
    */
   Array<T> operator + (Array<T> const& right) {
     Array<T> temp;
+
+    for(auto i = offset_; i < length_; i++) {
+      temp.push(array_[i]);
+    }
+    
+
     for (auto i = right.offset_; i < right.length_; i++) {
       temp.push(right.array_[i]);
     }
+
     return temp;
   }
 
@@ -130,21 +220,24 @@ public:
         seperator = "";
       }
 
-      // Determine whether we have a primitive type.
-      if (is_fundamental<T>::value) {
-        result += (std::to_string(array.array_[i]) + seperator);
-      } else {
-        result += (typeid(array).name() + seperator);
-      }
+      result += (array_utils::to_string(array.array_[i]) + seperator);
     }
     os  << "[" << result << "]";
     return os;
   }
-
+  
+  /**
+   * Add an element to the front of the array.
+   */
   void unshift(T const& value) {
     // Determine if the array is full
-    auto size = (size_ == 0) ? 1 : 
-      is_full() ? 2 * size_ : length() + 1;
+    auto size = 0;
+    if (size_ == 0) {
+      size = std::max((uint64_t) 1, (uint64_t) (size_ * 2));
+    } else {
+      size = is_full() ? 2 * size_ : length() + 1;
+    }
+
     T * array = new T[size];
     
     array[0] = value;
@@ -159,7 +252,10 @@ public:
     length_ += 1;
     size_ = size;
   }
-
+  
+  /**
+   * Remove an element from the front of the array.
+   */
   T& shift() {
     if (is_empty()) {
       throw std::out_of_range("Array is empty"); 
@@ -170,19 +266,25 @@ public:
 
     return element;
   }
-
+  
+  /**
+   * Add an element to the back of the array.
+   */
   void push(T const& value) {
     // Determine if the array is full
-    if (is_full()) {
-      auto size = size_ == 0 ? 1 : 2 * size_;
-      auto copy = size_ == 0 ? false : true;
-      reserve(size, copy);
+    if (size_ == 0) {
+      reserve(std::max((uint64_t) 1, (uint64_t) size_ * 2), false);
+    } else {
+      reserve(is_full() ? 2 * size_ : length() + 1, true);
     }
 
     array_[length()] = value;
     length_ += 1;
   }
-
+  
+  /**
+   * Remove an element from the back of the array.
+   */
   T& pop() {
     if (is_empty()) {
       throw std::out_of_range("Array is empty");
@@ -283,11 +385,28 @@ public:
     }
     return temp;
   }
-
+  
+  /**
+   * Reverse the elements in the array.
+   */
+  Array<T> reverse() {
+    Array<T> temp;
+    for(auto i = length() - 1; i >= 0; i--) {
+      temp.push(this->operator[](i));
+    }
+    return temp;
+  } 
+  
+  /**
+   * Concantenates the elements as a single string with a default seperator of ','.
+   */
   string join() {
     return this->join(",");
   }
-
+  
+  /**
+   * Concantenates the elements as a single string.
+   */
   string join(const string& seperator) {
     string result = "";
     this->for_each([&] (T x) {
@@ -295,11 +414,17 @@ public:
     });
     return result;
   }
-
+  
+  /**
+   * Allocate space on the heap.
+   */
   void reserve(uint64_t size) {
     reserve(size, false);
   }
-
+  
+  /**
+   * Allocate space on the heap.
+   */
   void reserve(uint64_t size, bool copy) {
     T * array = new T[size];
 
@@ -314,15 +439,24 @@ public:
     size_ = size;
     array_ = array;
   }
-
-  uint64_t length() {
+  
+  /**
+   * Return the number of elements in the array.
+   */
+  int64_t length() {
     return length_ - offset_;
   }
-
+  
+  /**
+   * Determine whether the array is empty.
+   */
   bool is_empty() {
     return length() == 0;
   }
-
+  
+  /**
+   * Determine whether the array is full.
+   */
   bool is_full() {
     return length() == size_;
   }
