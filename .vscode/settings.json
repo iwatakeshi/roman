@@ -47,6 +47,11 @@
     "tuple": "cpp",
     "type_traits": "cpp",
     "typeinfo": "cpp",
-    "utility": "cpp"
+    "utility": "cpp",
+    "map": "cpp",
+    "__tree": "cpp",
+    "array": "cpp",
+    "cmath": "cpp",
+    "sstream": "cpp"
   }
 }
