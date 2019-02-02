@@ -3,65 +3,73 @@
 #include <string>
 #include "char_stream.hpp"
 #include "token.hpp"
-#include "translate.hpp"
+#include "roman.hpp"
 #include "array.hpp"
 
 class Scanner {
 private:
   CharStream source_;
   uint64_t start_ = 0;
+  Array<Token> tokens_;
 
-  const Token& token() {
-
-    if (source_.is_eos()) {
-      return Token(EndOfFile, "\0", 0);
-    }
-
-    start_ = source_.position();
-    const auto ch = source_.next();
-    if (std::tolower(ch) >= 'a' && std::tolower(ch) <='z') {
+  void tokenize() {
+    auto ch = source_.next();
+    if (std::isalpha(ch)) {
       if (is_roman_numeral(ch)) {
-        return scan_roman_numeral();
+        tokens_.push(scan_roman_numeral());
+        return;
       }
     }
 
     if (is_numeral(ch)) {
-      return scan_numeral();
+      tokens_.push(scan_numeral());
+      return;
     }
 
-    switch (ch) {
-      case '+':
-      case '-':
-      case '*':
-      case '/':
-        return Token(Operator, get_lexeme(), 0);
-      default:
-        break;
+    if(is_operator(ch)) {
+      tokens_.push(Token(Operator, string(1, ch), 0));
+      return;
     }
 
-    return Token(Error, "Invalid character '" + ch + '\'', 0);
+    if(std::iswspace(ch) || std::isspace(ch)) {
+      return;
+    }
+
+    tokens_.push(Token(Error, "Invalid character '" + string(1, ch) + "'", 0));
   }
 
-  const Token& scan_roman_numeral() {
-    auto ch = source_.next();
-    while(!std::iswspace(ch) && is_roman_numeral(ch) && !source_.is_eos()) {
-      ch = source_.next();
+  const Token scan_roman_numeral() {
+    while (
+      is_roman_numeral(source_.current()) && 
+      !source_.is_eos()
+    ) {
+      source_.next();
     }
-    auto lexeme = get_lexeme();
+
+    auto lexeme = source_.range(start_);
+    int literal = 0;
+    
+    try {
+      literal = roman(lexeme);
+    } catch(string error) {
+      return Token(Error, error, 0);
+    }
     return Token(
       RomanNumeral, 
       lexeme,
-      translate(lexeme)
+      literal
     );
   }
 
-  const Token& scan_numeral() {
-    auto ch = source_.next();
-    while(!std::iswspace(ch) && is_numeral(ch) && !source_.is_eos()) {
-      ch = source_.next();
+  const Token scan_numeral() {
+    while(
+      is_numeral(source_.current()) && 
+      !source_.is_eos()
+    ) {
+      source_.next();
     }
 
-    auto lexeme = get_lexeme();
+    auto lexeme = source_.range(start_);
     auto literal = std::stoll(lexeme);
     return Token(
       Numeral,
@@ -70,12 +78,8 @@ private:
     );
   }
 
-  std::string get_lexeme() {
-    return source_.to_string().substr(start_, source_.position());
-  }
-
   bool is_roman_numeral(const char& ch) {
-    switch (std::tolower(ch)) {
+    switch (ch) {
         case 'i':
         case 'v':
         case 'x':
@@ -83,7 +87,7 @@ private:
         case 'c':
         case 'd':
         case 'm':
-        return true;
+          return true;
         default:
           break;
       }
@@ -93,26 +97,44 @@ private:
   bool is_numeral(const char& ch) {
     return ch >= '0' && ch <= '9';
   }
+  
+  bool is_operator(const char& ch) {
+    switch (ch) {
+      case '+':
+      case '-':
+      case '*':
+      case '/':
+        return true;
+      default:
+        return false;
+    }
+  }
 
 public:
-  Scanner() {}
-  Scanner(std::string source) {
+  Scanner() {
+    tokens_ = Array<Token>();
+  }
+  Scanner(const std::string& source) {
     source_ = CharStream(source);
+    tokens_ = Array<Token>();
+  }
+  Scanner(const Scanner& scanner) {
+    start_ = scanner.start_;
+    source_ = scanner.source_;
+    tokens_ = scanner.tokens_;
   }
 
   ~Scanner() {
   }
 
-  Array<Token>& scan() {
-    Array<Token> tokens;
-    auto t = token();
-    while (t.type != EndOfFile) {
-      // Add token to array
-      tokens.push(t);
-      t = token();
+  auto scan() {
+    while (!source_.is_eos()) {
+      // Mark the beginning of the lexeme
+      start_ = source_.position();
+      tokenize();
     }
-    
-    return tokens;
+    tokens_.push(Token(EndOfFile, "\0", 0));
+    return tokens_;
   }
 };
 
