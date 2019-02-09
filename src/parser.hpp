@@ -12,7 +12,7 @@ private:
 public:
   Parser() {};
 
-  Parser(Array<Token>& tokens) {
+  Parser(array<Token>& tokens) {
     stream_ = TokenStream(tokens);
   }
   ~Parser() {
@@ -26,7 +26,7 @@ public:
   int64_t addition() {
     auto token = multiplication();
     auto current = stream_.current();
-    Array<string> lexemes = { "+" , "-" };
+    array<string> lexemes = { "+" , "-" };
     while(stream_.match(Operator, lexemes)) {
       if (current.lexeme() == "+") {
         token += multiplication();
@@ -40,7 +40,7 @@ public:
   int64_t multiplication() {
     auto token = primary();
     auto current = stream_.current();
-    Array<string> lexemes = { "*" , "/" };
+    array<string> lexemes = { "*" , "/" };
     while(stream_.match(Operator, lexemes)) {
       if (current.lexeme() == "*") {
         token *= primary();
