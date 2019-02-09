@@ -2,7 +2,7 @@
 A simple roman numeral calculator
 
 
-# Usage
+## Usage
 
 ```bash
 # Run make
