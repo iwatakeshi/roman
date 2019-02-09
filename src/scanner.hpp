@@ -127,7 +127,7 @@ public:
   ~Scanner() {
   }
 
-  auto scan() {
+  auto& scan() {
     while (!source_.is_eos()) {
       // Mark the beginning of the lexeme
       start_ = source_.position();

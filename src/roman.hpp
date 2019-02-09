@@ -12,8 +12,8 @@ using std::endl;
 using std::string;
 using std::map;
 
-uint64_t roman(std::string lexeme) {
-  map<char, uint64_t> roman_map = {
+int64_t roman(std::string lexeme) {
+  map<char, int64_t> roman_map = {
     { 'i', 1 },
     { 'v', 5 },
     { 'x', 10 },
@@ -24,7 +24,7 @@ uint64_t roman(std::string lexeme) {
   };
 
   auto literal = 0;
-  uint64_t position = 0;
+  int64_t position = 0;
 
   auto current = [&] () {
     return lexeme[position];
@@ -98,12 +98,12 @@ uint64_t roman(std::string lexeme) {
   return literal;
 }
 
-string roman(uint64_t literal) {
+string roman(int64_t literal) {
   // if (std::to_string(literal).length() > 4) {
   //   string error = "Number greater than 1000 is not supported.";
   //   throw error;
   // }
-  map<uint64_t, string> roman_map = {
+  map<int64_t, string> roman_map = {
     { 1,    "i" },
     { 5,    "v" },
     { 10,   "x" },
