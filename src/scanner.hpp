@@ -10,7 +10,7 @@ class Scanner {
 private:
   CharStream source_;
   uint64_t start_ = 0;
-  Array<Token> tokens_;
+  array<Token> tokens_;
 
   void tokenize() {
     auto ch = source_.next();
@@ -112,11 +112,11 @@ private:
 
 public:
   Scanner() {
-    tokens_ = Array<Token>();
+    tokens_ = array<Token>();
   }
   Scanner(const std::string& source) {
     source_ = CharStream(source);
-    tokens_ = Array<Token>();
+    tokens_ = array<Token>();
   }
   Scanner(const Scanner& scanner) {
     start_ = scanner.start_;

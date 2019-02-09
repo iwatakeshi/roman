@@ -149,7 +149,7 @@ string roman(int64_t literal) {
   };
 
   
-  Array<int> num_chars;
+  array<int> num_chars;
   for(auto ch : std::to_string(literal)) {
     num_chars.unshift(ch - '0');
   }

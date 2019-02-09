@@ -9,12 +9,12 @@ using std::string;
 
 class TokenStream {
 private:
-  Array<Token> tokens_;
+  array<Token> tokens_;
   int64_t position_ = 0;
 public:
   TokenStream() {}
 
-  TokenStream(Array<Token>& tokens) {
+  TokenStream(array<Token>& tokens) {
     tokens_ = tokens;
   }
 
@@ -65,7 +65,7 @@ public:
   }
 
   template<typename... Args>
-  bool match(TokenType type, Array<string>const & lexemes) {
+  bool match(TokenType type, array<string>const & lexemes) {
     for (auto i = 0; i < lexemes.length(); i++) {
       if (current().type() == type && current().lexeme() == lexemes[i]) {
         next();
